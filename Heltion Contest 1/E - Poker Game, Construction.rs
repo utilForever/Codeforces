@@ -118,10 +118,6 @@ impl PartialOrd for Card {
     }
 }
 
-extern "C" {
-    fn rand() -> u32;
-}
-
 fn main() {
     let (stdin, stdout) = (io::stdin(), io::stdout());
     let mut scan = UnsafeScanner::new(stdin.lock());
@@ -207,90 +203,67 @@ fn main() {
 
                 cnt += 1;
 
-                let rand_value = unsafe { rand() % 4 } as usize;
-                write!(out, "{}{} ", rank, suits[rand_value]).unwrap();
-            }
-
-            writeln!(out).unwrap();
-        } else if cards_alice[0].rank == cards_bob[0].rank
-            || cards_alice[0].rank == cards_bob[1].rank
-        {
-            // Same rank cards
-            for suit in suits.iter() {
-                if cards_alice[1].suit == *suit {
-                    continue;
-                }
-
-                write!(out, "{}{} ", cards_alice[1].rank, suit).unwrap();
-            }
-
-            let mut cnt = 0;
-
-            // Random different rank cards
-            for rank in ranks.iter() {
-                if cnt == 3 {
-                    break;
-                }
-
-                if cards_alice[0].rank == *rank || cards_alice[1].rank == *rank {
-                    continue;
-                }
-
-                cnt += 1;
-
-                let rand_value = unsafe { rand() % 4 } as usize;
-                write!(out, "{}{} ", rank, suits[rand_value]).unwrap();
-            }
-
-            writeln!(out).unwrap();
-        } else if cards_alice[1].rank == cards_bob[0].rank
-            || cards_alice[1].rank == cards_bob[1].rank
-        {
-            // Same rank cards
-            for suit in suits.iter() {
-                if cards_alice[0].suit == *suit {
-                    continue;
-                }
-
-                write!(out, "{}{} ", cards_alice[0].rank, suit).unwrap();
-            }
-
-            let mut cnt = 0;
-
-            // Random different rank cards
-            for rank in ranks.iter() {
-                if cnt == 3 {
-                    break;
-                }
-
-                if cards_alice[0].rank == *rank || cards_alice[1].rank == *rank {
-                    continue;
-                }
-
-                cnt += 1;
-
-                let rand_value = unsafe { rand() % 4 } as usize;
-                write!(out, "{}{} ", rank, suits[rand_value]).unwrap();
+                write!(out, "{}{} ", rank, suits[cnt % 4]).unwrap();
             }
 
             writeln!(out).unwrap();
         } else {
-            // Same rank cards (1)
-            for suit in suits.iter() {
-                if cards_alice[0].suit == *suit {
-                    continue;
-                }
+            let mut vec_rank = vec![Vec::new(); 13];
 
-                write!(out, "{}{} ", cards_alice[0].rank, suit).unwrap();
+            for card in cards_alice.iter() {
+                vec_rank[card.rank as usize].push(card.suit.clone());
             }
 
-            // Same rank cards (2)
-            for suit in suits.iter() {
-                if cards_alice[1].suit == *suit {
+            for card in cards_bob.iter() {
+                if vec_rank[card.rank as usize].len() == 2 {
+                    vec_rank[card.rank as usize].push(card.suit.clone());
+                } else if vec_rank[card.rank as usize].len() == 1 {
+                    vec_rank[card.rank as usize].clear();
+                }
+            }
+
+            let mut cnt = 0;
+
+            for (i, rank) in vec_rank.iter().enumerate() {
+                if cnt == 6 {
+                    break;
+                }
+
+                if rank.is_empty() {
                     continue;
                 }
 
-                write!(out, "{}{} ", cards_alice[1].rank, suit).unwrap();
+                for suit in suits.iter() {
+                    if cnt == 6 {
+                        break;
+                    }
+
+                    if rank.contains(suit) {
+                        continue;
+                    }
+
+                    write!(out, "{}{} ", ranks[i], suit).unwrap();
+                    cnt += 1;
+                }
+            }
+
+            // Random different rank cards
+            for rank in ranks.iter() {
+                if cnt == 6 {
+                    break;
+                }
+
+                if cards_alice[0].rank == *rank
+                    || cards_alice[1].rank == *rank
+                    || cards_bob[0].rank == *rank
+                    || cards_bob[1].rank == *rank
+                {
+                    continue;
+                }
+
+                cnt += 1;
+
+                write!(out, "{}{} ", rank, suits[cnt % 4]).unwrap();
             }
 
             writeln!(out).unwrap();
@@ -300,31 +273,60 @@ fn main() {
         if cards_alice[0].rank == Rank::Ace
             && cards_alice[1].rank == Rank::Ace
             && cards_bob[0].rank == Rank::Ace
-            && (cards_bob[0].suit != cards_bob[1].suit
-                && (cards_bob[1].rank == Rank::Six
+            && cards_bob[1].rank != Rank::Ace
+        {
+            if cards_bob[0].suit != cards_bob[1].suit {
+                if cards_bob[1].rank == Rank::Six
                     || cards_bob[1].rank == Rank::Seven
                     || cards_bob[1].rank == Rank::Eight
-                    || cards_bob[1].rank == Rank::Nine))
-        {
-            writeln!(out, "NO").unwrap();
-        } else if cards_alice[0].rank == cards_alice[1].rank
-            && cards_alice[1].rank == cards_bob[0].rank
-            && cards_bob[0].rank == cards_bob[0].rank
-        {
-            writeln!(out, "NO").unwrap();
-        } else if cards_alice[0].rank == cards_bob[0].rank
-            && cards_alice[1].rank == cards_bob[1].rank
-            && cards_alice[1].suit != cards_bob[1].suit
-        {
-            writeln!(out, "NO").unwrap();
-        } else {
-            write!(out, "YES ").unwrap();
+                    || cards_bob[1].rank == Rank::Nine
+                {
+                    writeln!(out, "NO").unwrap();
+                } else if cards_bob[1].rank == Rank::Ten
+                    || cards_bob[1].rank == Rank::Jack
+                    || cards_bob[1].rank == Rank::Queen
+                    || cards_bob[1].rank == Rank::King
+                {
+                    // Straight
+                    write!(out, "YES ").unwrap();
 
-            if cards_bob[0].suit == cards_bob[1].suit
-                && !(cards_bob[0].suit == cards_alice[0].suit
-                    && cards_bob[0].suit == cards_alice[1].suit)
-            {
+                    let mut cnt = 0;
+
+                    for rank in [Rank::Ten, Rank::Jack, Rank::Queen, Rank::King].iter() {
+                        if cards_bob[1].rank == *rank {
+                            continue;
+                        }
+
+                        write!(out, "{}{} ", rank, suits[cnt % 4]).unwrap();
+                        write!(out, "{}{} ", rank, suits[(cnt + 1) % 4]).unwrap();
+
+                        cnt += 2;
+                    }
+
+                    writeln!(out).unwrap();
+                } else {
+                    // Straight
+                    write!(out, "YES ").unwrap();
+
+                    let mut cnt = 0;
+
+                    for rank in [Rank::Two, Rank::Three, Rank::Four, Rank::Five].iter() {
+                        if cards_bob[1].rank == *rank {
+                            continue;
+                        }
+
+                        write!(out, "{}{} ", rank, suits[cnt % 4]).unwrap();
+                        write!(out, "{}{} ", rank, suits[(cnt + 1) % 4]).unwrap();
+
+                        cnt += 2;
+                    }
+
+                    writeln!(out).unwrap();
+                }
+            } else {
                 // Flush
+                write!(out, "YES ").unwrap();
+
                 let mut cnt = 0;
 
                 for rank in ranks.iter() {
@@ -346,52 +348,192 @@ fn main() {
                 }
 
                 writeln!(out).unwrap();
-            } else if cards_bob[0].rank == cards_bob[1].rank {
-                // Same rank cards
-                for suit in suits.iter() {
-                    if cards_bob[0].suit == *suit || cards_bob[1].suit == *suit {
-                        continue;
-                    }
-
-                    write!(out, "{}{} ", cards_bob[0].rank, suit).unwrap();
-                }
+            }
+        } else if cards_alice[0].rank == cards_alice[1].rank
+            && cards_alice[1].rank == cards_bob[0].rank
+            && cards_bob[0].rank == cards_bob[1].rank
+        {
+            writeln!(out, "NO").unwrap();
+        } else if cards_alice[0].rank != cards_alice[1].rank
+            && cards_bob[0].rank != cards_bob[1].rank
+            && cards_alice[0].rank == cards_bob[0].rank
+            && cards_alice[1].rank == cards_bob[1].rank
+        {
+            if cards_bob[0].suit != cards_bob[1].suit {
+                writeln!(out, "NO").unwrap();
+            } else {
+                // Flush
+                write!(out, "YES ").unwrap();
 
                 let mut cnt = 0;
 
-                // Random different rank cards
                 for rank in ranks.iter() {
-                    if cnt == 4 {
+                    if cnt == 6 {
                         break;
                     }
 
-                    if cards_bob[0].rank == *rank || cards_bob[1].rank == *rank {
+                    if cards_bob[0].rank == *rank
+                        || cards_bob[1].rank == *rank
+                        || cards_alice[0].rank == *rank
+                        || cards_alice[1].rank == *rank
+                    {
                         continue;
                     }
 
                     cnt += 1;
 
-                    let rand_value = unsafe { rand() % 4 } as usize;
-                    write!(out, "{}{} ", rank, suits[rand_value]).unwrap();
+                    write!(out, "{}{} ", rank, cards_bob[0].suit).unwrap();
                 }
 
                 writeln!(out).unwrap();
-            } else {
-                // Same rank cards (1)
-                for suit in suits.iter() {
-                    if cards_bob[0].suit == *suit {
-                        continue;
+            }
+        } else {
+            write!(out, "YES ").unwrap();
+
+            if cards_bob[0].suit == cards_bob[1].suit {
+                if cards_alice[0].suit == cards_alice[1].suit
+                    && cards_bob[0].suit == cards_alice[0].suit
+                {
+                    let mut vec_rank = vec![Vec::new(); 13];
+
+                    for card in cards_bob.iter() {
+                        vec_rank[card.rank as usize].push(card.suit.clone());
                     }
 
-                    write!(out, "{}{} ", cards_bob[0].rank, suit).unwrap();
+                    for card in cards_alice.iter() {
+                        if vec_rank[card.rank as usize].len() == 2 {
+                            vec_rank[card.rank as usize].push(card.suit.clone());
+                        } else if vec_rank[card.rank as usize].len() == 1 {
+                            vec_rank[card.rank as usize].clear();
+                        }
+                    }
+
+                    let mut cnt = 0;
+
+                    for (i, rank) in vec_rank.iter().enumerate() {
+                        if cnt == 6 {
+                            break;
+                        }
+
+                        if rank.is_empty() {
+                            continue;
+                        }
+
+                        for suit in suits.iter() {
+                            if cnt == 6 {
+                                break;
+                            }
+
+                            if rank.contains(suit) {
+                                continue;
+                            }
+
+                            write!(out, "{}{} ", ranks[i], suit).unwrap();
+                            cnt += 1;
+                        }
+                    }
+
+                    // Random different rank cards
+                    for rank in ranks.iter() {
+                        if cnt == 6 {
+                            break;
+                        }
+
+                        if cards_alice[0].rank == *rank
+                            || cards_alice[1].rank == *rank
+                            || cards_bob[0].rank == *rank
+                            || cards_bob[1].rank == *rank
+                        {
+                            continue;
+                        }
+
+                        cnt += 1;
+
+                        write!(out, "{}{} ", rank, suits[cnt % 4]).unwrap();
+                    }
+
+                    writeln!(out).unwrap();
+                } else {
+                    // Flush
+                    let mut cnt = 0;
+
+                    for rank in ranks.iter() {
+                        if cnt == 6 {
+                            break;
+                        }
+
+                        if cards_bob[0].rank == *rank
+                            || cards_bob[1].rank == *rank
+                            || cards_alice[0].rank == *rank
+                            || cards_alice[1].rank == *rank
+                        {
+                            continue;
+                        }
+
+                        cnt += 1;
+
+                        write!(out, "{}{} ", rank, cards_bob[0].suit).unwrap();
+                    }
+
+                    writeln!(out).unwrap();
+                }
+            } else {
+                let mut vec_rank = vec![Vec::new(); 13];
+
+                for card in cards_bob.iter() {
+                    vec_rank[card.rank as usize].push(card.suit.clone());
                 }
 
-                // Same rank cards (2)
-                for suit in suits.iter() {
-                    if cards_bob[1].suit == *suit {
+                for card in cards_alice.iter() {
+                    if vec_rank[card.rank as usize].len() == 2 {
+                        vec_rank[card.rank as usize].push(card.suit.clone());
+                    } else if vec_rank[card.rank as usize].len() == 1 {
+                        vec_rank[card.rank as usize].clear();
+                    }
+                }
+
+                let mut cnt = 0;
+
+                for (i, rank) in vec_rank.iter().enumerate() {
+                    if cnt == 6 {
+                        break;
+                    }
+
+                    if rank.is_empty() {
                         continue;
                     }
 
-                    write!(out, "{}{} ", cards_bob[1].rank, suit).unwrap();
+                    for suit in suits.iter() {
+                        if cnt == 6 {
+                            break;
+                        }
+
+                        if rank.contains(suit) {
+                            continue;
+                        }
+
+                        write!(out, "{}{} ", ranks[i], suit).unwrap();
+                        cnt += 1;
+                    }
+                }
+
+                // Random different rank cards
+                for rank in ranks.iter() {
+                    if cnt == 6 {
+                        break;
+                    }
+
+                    if cards_alice[0].rank == *rank
+                        || cards_alice[1].rank == *rank
+                        || cards_bob[0].rank == *rank
+                        || cards_bob[1].rank == *rank
+                    {
+                        continue;
+                    }
+
+                    cnt += 1;
+
+                    write!(out, "{}{} ", rank, suits[cnt % 4]).unwrap();
                 }
 
                 writeln!(out).unwrap();
@@ -400,14 +542,13 @@ fn main() {
 
         // How to make the game in a draw
         if cards_alice[0].rank == cards_alice[1].rank
-            && cards_bob[0].rank == cards_bob[1].rank
-            && cards_alice[0].rank != cards_bob[0].rank
+            && !(cards_bob[0].rank == cards_bob[1].rank && cards_alice[0].rank == cards_bob[0].rank)
         {
             writeln!(out, "NO").unwrap();
-        } else if cards_bob[0].rank == cards_bob[1].rank
+        } else if cards_alice[0].rank != cards_alice[1].rank
             && cards_alice[0].rank != cards_bob[0].rank
             && cards_alice[1].rank != cards_bob[0].rank
-            && cards_alice[0].rank != cards_alice[1].rank
+            && cards_bob[0].rank == cards_bob[1].rank
         {
             writeln!(out, "NO").unwrap();
         } else if cards_alice[0].rank != cards_alice[1].rank
@@ -462,7 +603,6 @@ fn main() {
                     }
 
                     write!(out, "{}{} ", cards_bob[0].rank, suit).unwrap();
-                    break;
                 }
 
                 // Same rank cards (4)
@@ -472,22 +612,6 @@ fn main() {
                     }
 
                     write!(out, "{}{} ", cards_bob[1].rank, suit).unwrap();
-                    break;
-                }
-
-                // Random two same rank cards
-                for rank in ranks.iter() {
-                    if cards_alice[0].rank == *rank
-                        || cards_alice[1].rank == *rank
-                        || cards_bob[0].rank == *rank
-                        || cards_bob[1].rank == *rank
-                    {
-                        continue;
-                    }
-
-                    write!(out, "{}{} ", rank, suits[0]).unwrap();
-                    write!(out, "{}{} ", rank, suits[1]).unwrap();
-
                     break;
                 }
             }
@@ -517,17 +641,24 @@ fn main() {
                     continue;
                 }
 
+                let mut cnt_suit = 0;
+
                 for suit in suits.iter() {
                     if cnt == 6 {
                         break;
                     }
 
-                    if rank.contains(suit) {
+                    if rank.len() == 1 && cnt_suit == 1 {
+                        break;
+                    }
+
+                    if rank.len() % 2 == 0 || rank.contains(suit) {
                         continue;
                     }
 
                     write!(out, "{}{} ", ranks[i], suit).unwrap();
                     cnt += 1;
+                    cnt_suit += 1;
                 }
             }
 
@@ -545,8 +676,8 @@ fn main() {
                     continue;
                 }
 
-                write!(out, "{}{} ", rank, suits[0]).unwrap();
-                write!(out, "{}{} ", rank, suits[1]).unwrap();
+                write!(out, "{}{} ", rank, suits[cnt % 4]).unwrap();
+                write!(out, "{}{} ", rank, suits[(cnt + 1) % 4]).unwrap();
 
                 cnt += 2;
             }
