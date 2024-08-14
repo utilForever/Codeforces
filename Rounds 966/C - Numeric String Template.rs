@@ -57,7 +57,7 @@ fn main() {
         let m = scan.token::<i64>();
 
         for _ in 0..m {
-            let mut alphabet = vec![0; 26];
+            let mut alphabet = vec![i64::MAX; 26];
             let s = scan.token::<String>();
             let mut map = HashMap::new();
             let mut check = true;
@@ -75,7 +75,7 @@ fn main() {
                     break;
                 }
 
-                if alphabet[idx_c] != 0 && alphabet[idx_c] != idxes[idx] {
+                if alphabet[idx_c] != i64::MAX && alphabet[idx_c] != idxes[idx] {
                     check = false;
                     break;
                 }
